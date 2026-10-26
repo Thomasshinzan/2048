@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Merge Game</title>
+    <style>
+        :root {
+            --bg-color: #faf8ef;
+            --board-bg: #bbada0;
+            --cell-empty: #cdc1b4;
+            --text-dark: #776e65;
+            --text-light: #f9f6f2;
+            --btn-bg: #8f7a66;
+        }
+
+        body {
+            font-family: "Clear Sans", "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        /* ヘッダー周りのレイアウト */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 90vw;
+            max-width: 420px; /* 盤面の最大幅(400px)＋padding分(20px)に合わせる */
+            margin-bottom: 20px;
+        }
+
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        h1 {
+            color: var(--text-dark);
+            margin: 0;
+            font-size: 1.8rem;
+            line-height: 1;
+        }
+
+        /* ボタンの装飾 */
+        .restart-btn {
+            background-color: var(--btn-bg);
+            color: var(--text-light);
+            border: none;
+            border-radius: 5px;
+            padding: 8px 15px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .restart-btn:active {
+            background-color: var(--text-dark);
+        }
+
+        .scores {
+            display: flex;
+            gap: 10px;
+        }
+
+        .score-box {
+            background-color: var(--board-bg);
+            color: var(--bg-color);
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .score-box span {
+            display: block;
+            font-size: 1.2rem;
+            color: white;
+            margin-top: 2px;
+        }
+
+        /* 盤面とゲームオーバー画面の親コンテナ */
+        .board-container {
+            position: relative;
+            width: 90vw;
+            max-width: 420px;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 10px;
+            background-color: var(--board-bg);
+            padding: 10px;
+            border-radius: 10px;
+            width: 100%;
+            box-sizing: border-box; /* paddingを含めてwidthを100%にする */
+            aspect-ratio: 1 / 1;
+        }
+
+        /* ゲームオーバー時の半透明オーバーレイ */
+        #game-over-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(238, 228, 218, 0.85);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none; /* 非表示時はクリック判定を無効化 */
+            transition: opacity 0.3s ease;
+        }
+
+        #game-over-screen.active {
+            opacity: 1;
+            pointer-events: auto; /* 表示時にクリックを有効化 */
+        }
+
+        #game-over-screen p {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--text-dark);
+            margin: 0 0 20px 0;
+        }
+
+        .tile {
+            background-color: var(--cell-empty);
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--text-dark);
+            transition: background-color 0.15s, transform 0.1s;
+        }
+
+        .tile[data-val="2"] { background: #eee4da; }
+        .tile[data-val="4"] { background: #ede0c8; }
+        .tile[data-val="8"] { background: #f2b179; color: var(--text-light); }
+        .tile[data-val="16"] { background: #f59563; color: var(--text-light); }
+        .tile[data-val="32"] { background: #f67c5f; color: var(--text-light); }
+        .tile[data-val="64"] { background: #f65e3b; color: var(--text-light); }
+        .tile[data-val="128"] { background: #edcf72; color: var(--text-light); font-size: 1.5rem;}
+        .tile[data-val="256"] { background: #edcc61; color: var(--text-light); font-size: 1.5rem;}
+        .tile[data-val="512"] { background: #edc850; color: var(--text-light); font-size: 1.5rem;}
+        .tile[data-val="1024"] { background: #edc53f; color: var(--text-light); font-size: 1.2rem;}
+        .tile[data-val="2048"] { background: #edc22e; color: var(--text-light); font-size: 1.2rem;}
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-left">
+            <h1>Merge Game</h1>
+            <button class="restart-btn" onclick="initGame()">New Game</button>
+        </div>
+        <div class="scores">
+            <div class="score-box">
+                SCORE
+                <span id="score-display">0</span>
+            </div>
+            <div class="score-box">
+                BEST
+                <span id="highscore-display">0</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="board-container">
+        <div id="game-board"></div>
+        <!-- ゲームオーバー画面（初期状態では透明） -->
+        <div id="game-over-screen">
+            <p>Game Over!</p>
+            <button class="restart-btn" onclick="initGame()">Try Again</button>
+        </div>
+    </div>
+
+    <script>
+        const SIZE = 4;
+        let board = [];
+        let score = 0;
+        let highScore = 0;
+        let isGameOver = false; // ゲームオーバー状態を管理するフラグ
+
+        const boardElement = document.getElementById("game-board");
+        const scoreDisplay = document.getElementById("score-display");
+        const highScoreDisplay = document.getElementById("highscore-display");
+        const gameOverScreen = document.getElementById("game-over-screen");
+
+        // 初期化
+        function initGame() {
+            // ゲームオーバー画面を隠し、フラグをリセット
+            gameOverScreen.classList.remove("active");
+            isGameOver = false;
+
+            let savedHighScore = localStorage.getItem("mergeGameHighScore");
+            if (savedHighScore) {
+                highScore = parseInt(savedHighScore);
+                highScoreDisplay.textContent = highScore;
+            }
+
+            score = 0;
+            scoreDisplay.textContent = score;
+
+            board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+            boardElement.innerHTML = "";
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const tile = document.createElement("div");
+                    tile.id = `tile-${r}-${c}`;
+                    tile.classList.add("tile");
+                    boardElement.appendChild(tile);
+                }
+            }
+            spawnNumber();
+            spawnNumber();
+            updateBoard();
+        }
+
+        function addScore(points) {
+            score += points;
+            scoreDisplay.textContent = score;
+            
+            if (score > highScore) {
+                highScore = score;
+                highScoreDisplay.textContent = highScore;
+                localStorage.setItem("mergeGameHighScore", highScore);
+            }
+        }
+
+        function spawnNumber() {
+            let emptyCells = [];
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (board[r][c] === 0) emptyCells.push({ r, c });
+                }
+            }
+            if (emptyCells.length > 0) {
+                let randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                board[randomCell.r][randomCell.c] = Math.random() < 0.9 ? 2 : 4;
+            }
+        }
+
+        function updateBoard() {
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    let tile = document.getElementById(`tile-${r}-${c}`);
+                    let val = board[r][c];
+                    tile.textContent = val > 0 ? val : "";
+                    tile.setAttribute("data-val", val);
+                }
+            }
+        }
+
+        function slideRow(row) {
+            let arr = row.filter(val => val !== 0); 
+            for (let i = 0; i < arr.length - 1; i++) {
+                if (arr[i] === arr[i + 1]) {
+                    arr[i] *= 2;
+                    addScore(arr[i]);
+                    arr.splice(i + 1, 1);
+                }
+            }
+            while (arr.length < SIZE) arr.push(0);
+            return arr;
+        }
+
+        function rotateLeft(matrix) {
+            let newMatrix = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    newMatrix[SIZE - 1 - c][r] = matrix[r][c];
+                }
+            }
+            return newMatrix;
+        }
+
+        function rotateRight(matrix) {
+            let newMatrix = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    newMatrix[c][SIZE - 1 - r] = matrix[r][c];
+                }
+            }
+            return newMatrix;
+        }
+
+        function move(direction) {
+            // ゲームオーバー時は操作を無効化
+            if (isGameOver) return;
+
+            let oldBoard = JSON.stringify(board);
+
+            if (direction === "Right") {
+                board = rotateRight(board);
+                board = rotateRight(board);
+            } else if (direction === "Up") {
+                board = rotateLeft(board);
+            } else if (direction === "Down") {
+                board = rotateRight(board);
+            }
+
+            for (let r = 0; r < SIZE; r++) {
+                board[r] = slideRow(board[r]);
+            }
+
+            if (direction === "Right") {
+                board = rotateRight(board);
+                board = rotateRight(board);
+            } else if (direction === "Up") {
+                board = rotateRight(board);
+            } else if (direction === "Down") {
+                board = rotateLeft(board);
+            }
+
+            if (oldBoard !== JSON.stringify(board)) {
+                spawnNumber();
+                updateBoard();
+                setTimeout(checkGameOver, 50);
+            }
+        }
+
+        function checkGameOver() {
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (board[r][c] === 0) return;
+                }
+            }
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (c < SIZE - 1 && board[r][c] === board[r][c + 1]) return;
+                    if (r < SIZE - 1 && board[r][c] === board[r + 1][c]) return;
+                }
+            }
+            
+            // 動かせるマスが無くなった場合の処理
+            isGameOver = true;
+            gameOverScreen.classList.add("active");
+        }
+
+        window.addEventListener("keydown", (e) => {
+            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+                e.preventDefault();
+                move(e.key.replace("Arrow", ""));
+            }
+        });
+
+        let touchStartX = 0;
+        let touchStartY = 0;
+        
+        boardElement.addEventListener("touchstart", (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        });
+
+        boardElement.addEventListener("touchend", (e) => {
+            let touchEndX = e.changedTouches[0].screenX;
+            let touchEndY = e.changedTouches[0].screenY;
+            handleSwipe(touchStartX, touchStartY, touchEndX, touchEndY);
+        });
+
+        function handleSwipe(startX, startY, endX, endY) {
+            let dx = endX - startX;
+            let dy = endY - startY;
+            let absDx = Math.abs(dx);
+            let absDy = Math.abs(dy);
+
+            if (Math.max(absDx, absDy) < 30) return; 
+
+            if (absDx > absDy) {
+                move(dx > 0 ? "Right" : "Left");
+            } else {
+                move(dy > 0 ? "Down" : "Up");
+            }
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
